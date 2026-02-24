@@ -102,43 +102,54 @@ export const generateAIResponse = async (userMessage) => {
   return response // 생성된 응답 반환
 }
 
+// Next.js API Route 경로
+// 이 경로는 Next.js 서버에서 Flask 서버(5000번 포트)로 프록시합니다
+const SEND_MESSAGE_PATH = '/api/sendMessage'
+
 /**
- * 실제 AI API 연결 함수 (나중에 사용)
- * OpenAI, Claude, 또는 다른 AI 서비스와 연결
+ * fetch 함수를 사용하여 채팅 API를 호출합니다.
+ * 
+ * fetch란?
+ * - 브라우저에 내장된 네이티브 JavaScript 함수
+ * - HTTP 요청을 보내고 응답을 받는 기능 제공
+ * - Promise 기반으로 비동기 처리
+ * - 별도 라이브러리 설치 불필요 (axios와 달리)
+ * 
+ * 작동 방식:
+ * 1. 브라우저 → Next.js API Route(/api/sendMessage)로 요청
+ * 2. Next.js API Route → Flask 서버(localhost:5000 또는 api.~~~.com)로 프록시
+ * 3. Flask 서버 → OpenAI API 호출
+ * 4. 응답이 역순으로 전달되어 채팅에 표시
  * 
  * @param {string} userMessage - 사용자 메시지
- * @param {object} context - 사용자 프로필 컨텍스트
- * @returns {Promise<string>} - AI 응답
+ * @param {object} context - 사용자 프로필 컨텍스트 (선택사항)
+ * @returns {Promise<string>} - AI 응답 텍스트
  */
 export const callAIAPI = async (userMessage, context = userProfile) => {
-  // TODO: 실제 AI API 호출 구현
-  // 예시 (OpenAI):
-  /*
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.NEXT_PUBLIC_OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: 'gpt-4',
-      messages: [
-        {
-          role: 'system',
-          content: `당신은 ${context.name}의 포트폴리오 AI 어시스턴트입니다. 다음 정보를 바탕으로 질문에 답변하세요: ${JSON.stringify(context)}`
-        },
-        {
-          role: 'user',
-          content: userMessage
-        }
-      ]
-    })
-  })
+  const url = `${SEND_MESSAGE_PATH}?message=${encodeURIComponent(userMessage)}`
   
-  const data = await response.json()
-  return data.choices[0].message.content
-  */
-  
-  // 현재는 키워드 기반 응답 사용 - 나중에 실제 AI API로 교체
-  return await generateAIResponse(userMessage) // generateAIResponse 함수 호출하여 응답 생성
+  // 개발자도구 Network 탭에서 요청 확인용 (과제)
+  // 브라우저에서 실행될 때만 window 객체가 존재하므로 체크
+  const fullUrl = typeof window !== 'undefined' ? window.location.origin + url : url
+  if (typeof window !== 'undefined') {
+    console.log('[API 요청]', fullUrl)
+  }
+
+  // fetch 함수 사용: GET 요청으로 API 호출
+  // fetch는 Promise를 반환하므로 await로 응답 대기
+  const res = await fetch(url)
+  const text = await res.text()
+
+  // 응답이 성공적이면 (status 200-299)
+  if (res.ok) {
+    return text
+  }
+
+  // 502 (Bad Gateway): Next.js가 Flask 서버에 연결할 수 없음
+  // 500 (Internal Server Error): Flask 서버 내부 오류
+  if (res.status === 502 || res.status === 500) {
+    return text || '채팅 서버에 연결할 수 없습니다. Flask 서버가 실행 중인지 확인하세요.'
+  }
+
+  return text || `오류 (${res.status}). 잠시 후 다시 시도해주세요.`
 }

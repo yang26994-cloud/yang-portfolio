@@ -26,6 +26,7 @@ export default function ChatWidget() {
 
     // 사용자 입력 메시지에서 앞뒤 공백 제거
     const userMessage = message.trim()
+    if (typeof window !== 'undefined') console.log('[채팅 전송]', userMessage)
 
     // 사용자 메시지 객체 생성 - 메시지 목록에 추가할 객체
     const newMessage = {
