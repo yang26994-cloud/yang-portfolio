@@ -37,7 +37,7 @@ async function connectToMongoDB() {
 // 채팅 로그 저장 함수
 async function saveChatLog(userMessage, aiResponse, success = true, error = null) {
   console.log('🔵 saveChatLog 함수 시작')
-  console.log('🔵 MONGODB_URI 존재 여부:', !!mongoUri)
+  console.log('🔵 MONGODB_URI 존재 여부:', !!process.env.MONGODB_URI)
   
   try {
     console.log('🔵 MongoDB 연결 시도...')
