@@ -1,19 +1,18 @@
-// Next.js API Route: OpenAI Assistants API를 직접 호출
-// Flask 서버 없이 Next.js에서 직접 OpenAI와 통신
+// Next.js API Route: Google Gemini API 사용
+// 프롬프트를 환경변수로 관리
 // MongoDB에 채팅 로그 저장
 
-import OpenAI from 'openai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { MongoClient } from 'mongodb'
 
-// 환경변수에서 OpenAI 설정 가져오기
-const apiKey = process.env.OPENAI_API_KEY
-const assistantId = process.env.ASSISTANT_ID
-
-// MongoDB 연결 문자열
+// 환경변수에서 설정 가져오기
+const apiKey = process.env.GEMINI_API_KEY
 const mongoUri = process.env.MONGODB_URI
+// 시스템 프롬프트
+const systemPrompt = process.env.SYSTEM_PROMPT || '당신은 친절한 AI 어시스턴트입니다.'
 
-// OpenAI 클라이언트 초기화
-const client = new OpenAI({ apiKey })
+// Gemini 클라이언트 초기화
+const genAI = new GoogleGenerativeAI(apiKey)
 
 // MongoDB 클라이언트 (재사용을 위한 전역 변수)
 let mongoClient = null
@@ -79,56 +78,32 @@ export async function GET(request) {
   }
 
   // 환경변수 검증
-  if (!apiKey || !assistantId) {
-    console.error('환경변수 누락: OPENAI_API_KEY 또는 ASSISTANT_ID')
+  if (!apiKey) {
+    console.error('환경변수 누락: GEMINI_API_KEY')
     return new Response(
-      '서버 설정 오류: OpenAI 키가 설정되지 않았습니다.',
+      '서버 설정 오류: Gemini API 키가 설정되지 않았습니다.',
       { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
     )
   }
 
   try {
-    console.log('[OpenAI API 요청] 메시지:', message.substring(0, 50) + '...')
+    console.log('[Gemini API 요청] 메시지:', message.substring(0, 50) + '...')
+    console.log('[System Prompt] 프롬프트 사용 중')
 
-    // 1. 스레드 생성
-    const thread = await client.beta.threads.create()
-    
-    // 2. 사용자 메시지 추가
-    await client.beta.threads.messages.create(thread.id, {
-      role: 'user',
-      content: message,
+    // Gemini 모델 초기화 (최신 모델 사용)
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.0-flash-exp', // 최신 Gemini 2.0 모델
     })
 
-    // 3. 어시스턴트 실행 및 완료 대기
-    const run = await client.beta.threads.runs.createAndPoll(thread.id, {
-      assistant_id: assistantId,
-    })
+    // 시스템 프롬프트 + 사용자 메시지 결합
+    const fullPrompt = `${systemPrompt}\n\n사용자 질문: ${message}\n\n답변:`
 
-    // 4. 실행 상태 확인
-    if (run.status !== 'completed') {
-      console.error('OpenAI 실행 실패:', run.status)
-      return new Response(
-        `응답 생성 중 오류가 발생했습니다. (상태: ${run.status})`,
-        { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
-      )
-    }
+    // Gemini API 호출
+    const result = await model.generateContent(fullPrompt)
+    const response = await result.response
+    const responseText = response.text()
 
-    // 5. 어시스턴트 응답 가져오기
-    const messages = await client.beta.threads.messages.list(thread.id, {
-      order: 'desc',
-      limit: 1,
-    })
-
-    if (!messages.data || messages.data.length === 0 || messages.data[0].role !== 'assistant') {
-      return new Response(
-        '어시스턴트 응답을 가져올 수 없습니다.',
-        { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
-      )
-    }
-
-    const responseText = messages.data[0].content[0].text.value
-
-    console.log('[OpenAI API 응답] 성공:', responseText.substring(0, 50) + '...')
+    console.log('[Gemini API 응답] 성공:', responseText.substring(0, 50) + '...')
 
     // MongoDB에 채팅 로그 저장 (성공)
     await saveChatLog(message, responseText, true, null)
@@ -137,13 +112,13 @@ export async function GET(request) {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     })
   } catch (err) {
-    console.error('OpenAI API 오류:', err.message)
+    console.error('Gemini API 오류:', err.message)
     
     // MongoDB에 채팅 로그 저장 (실패)
     await saveChatLog(message, null, false, err.message)
     
     return new Response(
-      `OpenAI API 오류: ${err.message}`,
+      `Gemini API 오류: ${err.message}`,
       { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
     )
   }
