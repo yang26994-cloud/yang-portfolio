@@ -23,7 +23,7 @@ if (!systemPrompt) {
 }
 
 // Gemini 클라이언트 초기화 (최신 SDK)
-const ai = new GoogleGenAI({ apiKey: apiKey })
+const ai = new GoogleGenAI({})
 
 // MongoDB 클라이언트 (재사용을 위한 전역 변수)
 let mongoClient = null
@@ -44,8 +44,62 @@ async function connectToMongoDB() {
   return mongoClient
 }
 
+// Gemini API 호출 함수 (재시도 + Fallback 로직)
+async function callGeminiWithRetry(message, maxRetries = 2) {
+  const models = [
+    'gemini-3-flash-preview', // 최신 모델 (1순위)
+    'gemini-1.5-flash',       // 안정 모델 (Fallback)
+  ]
+  
+  for (const model of models) {
+    console.log(`🔄 모델 시도: ${model}`)
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: model,
+          contents: message,
+          config: {
+            systemInstruction: systemPrompt,
+            temperature: 1.0,
+            maxOutputTokens: 2000,
+            topP: 0.8,
+            topK: 40,
+          },
+        })
+        
+        console.log(`✅ ${model} 성공!`)
+        return { text: response.text, model: model }
+        
+      } catch (err) {
+        const is503 = err.status === 503 || err.message.includes('503') || err.message.includes('Service Unavailable')
+        
+        if (is503) {
+          console.log(`⚠️ ${model} 503 에러 (${attempt}/${maxRetries})`)
+          
+          if (attempt < maxRetries) {
+            const waitTime = 500 * attempt // 0.5초, 1초 대기 (빠르게)
+            console.log(`⏳ ${waitTime}ms 대기 후 재시도...`)
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+            continue // 재시도
+          } else {
+            console.log(`❌ ${model} 재시도 횟수 초과, 다음 모델로 전환...`)
+            break // 다음 모델로
+          }
+        } else {
+          // 503이 아닌 다른 에러는 즉시 throw
+          throw err
+        }
+      }
+    }
+  }
+  
+  // 모든 모델 실패 시
+  throw new Error('모든 Gemini 모델이 현재 사용 불가능합니다. 잠시 후 다시 시도해주세요.')
+}
+
 // 채팅 로그 저장 함수
-async function saveChatLog(userMessage, aiResponse, success = true, error = null) {
+async function saveChatLog(userMessage, aiResponse, success = true, error = null, modelUsed = null) {
   console.log('🔵 saveChatLog 함수 시작')
   console.log('🔵 MONGODB_URI 존재 여부:', !!process.env.MONGODB_URI)
   
@@ -63,6 +117,7 @@ async function saveChatLog(userMessage, aiResponse, success = true, error = null
       aiResponse: aiResponse, // AI 응답
       success: success, // 성공 여부
       error: error, // 에러 메시지 (있다면)
+      modelUsed: modelUsed, // 사용된 모델
     }
     
     console.log('🔵 문서 저장 시도...')
@@ -105,16 +160,17 @@ export async function GET(request) {
     console.log('========== 전체 프롬프트 끝 ==========')
     console.log('[프롬프트 길이]', systemPrompt.length, '글자')
 
-    // Gemini API 호출 (최신 SDK - 문서대로)
+    // Gemini API 호출 (최신 문서대로 gemini-3-flash-preview + timeout 설정)
     const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview', // 최신 Gemini 3 모델
+      model: 'gemini-3-flash-preview',
       contents: message,
       config: {
         systemInstruction: systemPrompt,
-        temperature: 1.0, // Gemini 3 권장값 (문서 참조)
-        maxOutputTokens: 2000, // 충분한 답변 길이 보장
+        temperature: 1.0,
+        maxOutputTokens: 2000,
         topP: 0.8,
         topK: 40,
+        timeout: 60000, // 60초 timeout (공식 권장사항)
       },
     })
     
@@ -123,7 +179,7 @@ export async function GET(request) {
     console.log('[Gemini API 응답] 성공:', responseText.substring(0, 50) + '...')
 
     // MongoDB에 채팅 로그 저장 (성공)
-    await saveChatLog(message, responseText, true, null)
+    await saveChatLog(message, responseText, true, null, 'gemini-3-flash-preview')
 
     return new Response(responseText, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
@@ -133,7 +189,7 @@ export async function GET(request) {
     console.error('전체 에러:', err)
     
     // MongoDB에 채팅 로그 저장 (실패)
-    await saveChatLog(message, null, false, err.message)
+    await saveChatLog(message, null, false, err.message, null)
     
     return new Response(
       `Gemini API 오류: ${err.message}`,
