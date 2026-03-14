@@ -1,7 +1,13 @@
 import { PrismaClient } from '@prisma/client'
 import { NextResponse } from 'next/server'
 
-const prisma = new PrismaClient()
+const globalForPrisma = global
+
+const prisma = globalForPrisma.prisma || new PrismaClient()
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma
+}
 
 export async function GET() {
   try {
@@ -18,5 +24,7 @@ export async function GET() {
       { error: '블로그를 불러오는데 실패했습니다.' },
       { status: 500 }
     )
+  } finally {
+    await prisma.$disconnect()
   }
 }
