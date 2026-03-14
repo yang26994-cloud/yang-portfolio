@@ -24,7 +24,5 @@ export async function GET() {
       { error: '블로그를 불러오는데 실패했습니다.' },
       { status: 500 }
     )
-  } finally {
-    await prisma.$disconnect()
   }
 }
