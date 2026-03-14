@@ -17,7 +17,11 @@ export async function GET() {
       },
     })
 
-    return NextResponse.json(blogs)
+    return NextResponse.json(blogs, {
+      headers: {
+        'Cache-Control': 'no-store, max-age=0',
+      },
+    })
   } catch (error) {
     console.error('블로그 조회 오류:', error)
     return NextResponse.json(
