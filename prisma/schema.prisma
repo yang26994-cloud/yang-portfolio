@@ -1,0 +1,21 @@
+// Prisma 클라이언트 설정
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Neon PostgreSQL 연결
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 블로그 테이블
+model Blog {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(200)
+  content   String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("blogs")
+}

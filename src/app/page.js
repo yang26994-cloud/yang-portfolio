@@ -6,6 +6,7 @@ import About from './components/About' // 자기소개 섹션 컴포넌트 - 프
 import Skills from './components/Skills' // 기술 스택 섹션 컴포넌트 - 보유 기술 목록
 import Timeline from './components/Timeline' // 타임라인 섹션 컴포넌트 - 학습 여정
 import Projects from './components/Projects' // 프로젝트 섹션 컴포넌트 - 프로젝트 카드 그리드
+import Blogs from './components/Blogs' // 블로그 섹션 컴포넌트 - 블로그 글 목록
 import Certifications from './components/Certifications' // 자격증 섹션 컴포넌트 - 취득 예정 자격증 목록
 import Contact from './components/Contact' // 연락처 섹션 컴포넌트 - 연락 폼과 SNS 링크
 import ChatWidget from './components/ChatWidget' // 채팅 위젯 컴포넌트 - AI 채팅 기능
@@ -36,6 +37,9 @@ export default function Home() {
       
       {/* Projects 섹션 - 프로젝트 목록, 카드 그리드 레이아웃 */}
       <Projects />
+      
+      {/* Blogs 섹션 - 블로그 글 목록 */}
+      <Blogs />
       
       {/* Certifications 섹션 - 자격증 목록 */}
       <Certifications />
