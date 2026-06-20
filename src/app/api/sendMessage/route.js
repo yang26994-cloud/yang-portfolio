@@ -11,16 +11,27 @@ import path from 'path'
 const apiKey = process.env.GEMINI_API_KEY
 const mongoUri = process.env.MONGODB_URI
 
-// 시스템 프롬프트: 환경변수 우선, 없으면 파일에서 읽기
-let systemPrompt = process.env.SYSTEM_PROMPT
+// 시스템 프롬프트: 환경변수 우선, 없으면 배포용 prompts 파일에서 읽기
+function loadSystemPrompt() {
+  if (process.env.SYSTEM_PROMPT) {
+    return process.env.SYSTEM_PROMPT
+  }
 
-if (!systemPrompt) {
-  // 로컬 개발 환경: 파일에서 읽기
-  const promptPath = path.join(process.cwd(), 'system-prompt.txt')
-  systemPrompt = fs.existsSync(promptPath) 
-    ? fs.readFileSync(promptPath, 'utf-8')
-    : '당신은 친절한 AI 어시스턴트입니다.'
+  const promptPaths = [
+    path.join(process.cwd(), 'prompts', 'system-prompt.txt'),
+    path.join(process.cwd(), 'system-prompt.txt'),
+  ]
+
+  for (const promptPath of promptPaths) {
+    if (fs.existsSync(promptPath)) {
+      return fs.readFileSync(promptPath, 'utf-8')
+    }
+  }
+
+  return '당신은 친절한 AI 어시스턴트입니다.'
 }
+
+const systemPrompt = loadSystemPrompt()
 
 // Gemini 클라이언트 초기화 (최신 SDK)
 const ai = new GoogleGenAI({ apiKey })

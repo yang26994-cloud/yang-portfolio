@@ -1,20 +1,17 @@
 # Prompts 폴더
 
-이 폴더에는 AI 어시스턴트 프롬프트가 저장됩니다.
+AI 어시스턴트 시스템 프롬프트를 관리합니다.
 
 ## 사용 방법
 
-### 로컬 개발
-1. `system-prompt.txt` 파일 수정
-2. `.env` 파일에 복사-붙여넣기
-3. 개발 서버 재시작
+1. `prompts/system-prompt.txt` 수정
+2. GitHub에 push → Vercel 자동 배포
 
-### Vercel 배포
-1. `system-prompt.txt` 파일 수정
-2. Vercel Environment Variables에서 `SYSTEM_PROMPT` 수정
-3. 재배포
+Vercel 환경변수 `SYSTEM_PROMPT`가 설정되어 있으면 파일보다 환경변수가 우선합니다.
 
 ## 파일 설명
 
-- `system-prompt.txt`: 기본 시스템 프롬프트
-- GitHub에 올라가도 됩니다 (민감한 정보 없음)
+- `system-prompt.txt`: 배포에 포함되는 시스템 프롬프트 (GitHub에 올라감)
+- 루트 `system-prompt.txt`: 로컬 전용 백업 (`.gitignore` 처리)
+
+프롬프트 수정 후 배포하려면 `prompts/system-prompt.txt`를 수정하세요.
