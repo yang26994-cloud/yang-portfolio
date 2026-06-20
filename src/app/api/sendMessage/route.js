@@ -65,7 +65,13 @@ function buildGeminiContents(message, systemPrompt) {
 
 function getUserFacingErrorMessage(err) {
   const message = err?.message || ''
-  if (message.includes('403') || message.includes('PERMISSION_DENIED') || message.includes('suspended')) {
+  if (
+    message.includes('403') ||
+    message.includes('PERMISSION_DENIED') ||
+    message.includes('suspended') ||
+    message.includes('API key expired') ||
+    message.includes('API_KEY_INVALID')
+  ) {
     return 'AI 서비스 설정에 문제가 있습니다. 잠시 후 다시 시도해주세요.'
   }
   if (message.includes('503') || message.includes('Service Unavailable')) {
