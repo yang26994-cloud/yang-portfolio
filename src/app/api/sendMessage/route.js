@@ -58,13 +58,15 @@ async function connectToMongoDB() {
 // Gemini API 호출 함수 (재시도 + Fallback 로직)
 async function callGeminiWithRetry(message, maxRetries = 2) {
   const models = [
-    'gemini-3-flash-preview', // 최신 모델 (1순위)
-    'gemini-1.5-flash',       // 안정 모델 (Fallback)
+    'gemini-2.0-flash',
+    'gemini-1.5-flash',
   ]
-  
+
+  let lastError = null
+
   for (const model of models) {
     console.log(`🔄 모델 시도: ${model}`)
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await ai.models.generateContent({
@@ -76,37 +78,31 @@ async function callGeminiWithRetry(message, maxRetries = 2) {
             maxOutputTokens: 2000,
             topP: 0.8,
             topK: 40,
+            timeout: 60000,
           },
         })
-        
+
         console.log(`✅ ${model} 성공!`)
         return { text: response.text, model: model }
-        
+
       } catch (err) {
+        lastError = err
         const is503 = err.status === 503 || err.message.includes('503') || err.message.includes('Service Unavailable')
-        
-        if (is503) {
-          console.log(`⚠️ ${model} 503 에러 (${attempt}/${maxRetries})`)
-          
-          if (attempt < maxRetries) {
-            const waitTime = 500 * attempt // 0.5초, 1초 대기 (빠르게)
-            console.log(`⏳ ${waitTime}ms 대기 후 재시도...`)
-            await new Promise(resolve => setTimeout(resolve, waitTime))
-            continue // 재시도
-          } else {
-            console.log(`❌ ${model} 재시도 횟수 초과, 다음 모델로 전환...`)
-            break // 다음 모델로
-          }
-        } else {
-          // 503이 아닌 다른 에러는 즉시 throw
-          throw err
+
+        if (is503 && attempt < maxRetries) {
+          const waitTime = 500 * attempt
+          console.log(`⚠️ ${model} 503 에러 (${attempt}/${maxRetries}), ${waitTime}ms 후 재시도...`)
+          await new Promise(resolve => setTimeout(resolve, waitTime))
+          continue
         }
+
+        console.log(`❌ ${model} 실패:`, err.message)
+        break
       }
     }
   }
-  
-  // 모든 모델 실패 시
-  throw new Error('모든 Gemini 모델이 현재 사용 불가능합니다. 잠시 후 다시 시도해주세요.')
+
+  throw lastError || new Error('모든 Gemini 모델이 현재 사용 불가능합니다. 잠시 후 다시 시도해주세요.')
 }
 
 // 채팅 로그 저장 함수
@@ -165,32 +161,14 @@ export async function GET(request) {
 
   try {
     console.log('[Gemini API 요청] 메시지:', message.substring(0, 50) + '...')
-    console.log('[System Prompt] 프롬프트 사용 중')
-    console.log('========== 전체 프롬프트 시작 ==========')
-    console.log(systemPrompt)
-    console.log('========== 전체 프롬프트 끝 ==========')
-    console.log('[프롬프트 길이]', systemPrompt.length, '글자')
+    console.log('[System Prompt] 길이:', systemPrompt.length, '글자')
 
-    // Gemini API 호출 (최신 문서대로 gemini-3-flash-preview + timeout 설정)
-    const response = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: message,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 1.0,
-        maxOutputTokens: 2000,
-        topP: 0.8,
-        topK: 40,
-        timeout: 60000, // 60초 timeout (공식 권장사항)
-      },
-    })
-    
-    const responseText = response.text
+    const { text: responseText, model: modelUsed } = await callGeminiWithRetry(message)
 
     console.log('[Gemini API 응답] 성공:', responseText.substring(0, 50) + '...')
 
     // MongoDB에 채팅 로그 저장 (성공)
-    await saveChatLog(message, responseText, true, null, 'gemini-3-flash-preview')
+    await saveChatLog(message, responseText, true, null, modelUsed)
 
     return new Response(responseText, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
