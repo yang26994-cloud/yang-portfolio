@@ -11,20 +11,22 @@ import path from 'path'
 const apiKey = process.env.GEMINI_API_KEY
 const mongoUri = process.env.MONGODB_URI
 
-// 시스템 프롬프트: 환경변수 우선, 없으면 배포용 prompts 파일에서 읽기
+// 시스템 프롬프트: Vercel은 SYSTEM_PROMPT 환경변수, 로컬은 gitignore된 파일
 function loadSystemPrompt() {
-  if (process.env.SYSTEM_PROMPT) {
+  if (process.env.SYSTEM_PROMPT?.trim()) {
     return process.env.SYSTEM_PROMPT
   }
 
-  const promptPaths = [
-    path.join(process.cwd(), 'prompts', 'system-prompt.txt'),
-    path.join(process.cwd(), 'system-prompt.txt'),
-  ]
+  if (process.env.NODE_ENV !== 'production') {
+    const promptPaths = [
+      path.join(process.cwd(), 'system-prompt.txt'),
+      path.join(process.cwd(), 'prompts', 'system-prompt.txt'),
+    ]
 
-  for (const promptPath of promptPaths) {
-    if (fs.existsSync(promptPath)) {
-      return fs.readFileSync(promptPath, 'utf-8')
+    for (const promptPath of promptPaths) {
+      if (fs.existsSync(promptPath)) {
+        return fs.readFileSync(promptPath, 'utf-8')
+      }
     }
   }
 

@@ -1,17 +1,25 @@
-# Prompts 폴더
+# Prompts
 
-AI 어시스턴트 시스템 프롬프트를 관리합니다.
+프롬프트 파일은 **GitHub에 올리지 않습니다.**
 
-## 사용 방법
+## 로컬에서 수정
 
-1. `prompts/system-prompt.txt` 수정
-2. GitHub에 push → Vercel 자동 배포
+1. `system-prompt.txt` (또는 `prompts/system-prompt.txt`) 수정
+2. `npm run dev`로 로컬 테스트
 
-Vercel 환경변수 `SYSTEM_PROMPT`가 설정되어 있으면 파일보다 환경변수가 우선합니다.
+## Vercel 배포
 
-## 파일 설명
+1. `system-prompt.txt` 내용 전체 복사
+2. Vercel → Settings → Environment Variables
+3. Name: `SYSTEM_PROMPT` / Value: 붙여넣기
+4. Production, Preview, Development 모두 체크 → Save → Redeploy
 
-- `system-prompt.txt`: 배포에 포함되는 시스템 프롬프트 (GitHub에 올라감)
-- 루트 `system-prompt.txt`: 로컬 전용 백업 (`.gitignore` 처리)
+프롬프트를 수정할 때마다 Vercel `SYSTEM_PROMPT`도 같이 업데이트하세요.
 
-프롬프트 수정 후 배포하려면 `prompts/system-prompt.txt`를 수정하세요.
+## 도움말
+
+```bash
+npm run sync-prompt
+```
+
+로컬 프롬프트 파일 위치와 Vercel 설정 방법을 안내합니다.
