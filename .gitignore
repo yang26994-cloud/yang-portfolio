@@ -6,8 +6,8 @@ node_modules
 .env
 .env*.local
 
-# system prompt (보안!)
-system-prompt.txt
+# system prompt (로컬 백업만 제외, prompts/ 폴더는 배포용)
+/system-prompt.txt
 
 # vercel
 .vercel
