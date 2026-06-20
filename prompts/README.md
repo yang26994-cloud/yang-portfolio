@@ -1,25 +1,31 @@
 # Prompts
 
-프롬프트 파일은 **GitHub에 올리지 않습니다.**
+프롬프트는 GitHub에 올리지 않습니다.
 
-## 로컬에서 수정
-
-1. `system-prompt.txt` (또는 `prompts/system-prompt.txt`) 수정
-2. `npm run dev`로 로컬 테스트
-
-## Vercel 배포
-
-1. `system-prompt.txt` 내용 전체 복사
-2. Vercel → Settings → Environment Variables
-3. Name: `SYSTEM_PROMPT` / Value: 붙여넣기
-4. Production, Preview, Development 모두 체크 → Save → Redeploy
-
-프롬프트를 수정할 때마다 Vercel `SYSTEM_PROMPT`도 같이 업데이트하세요.
-
-## 도움말
+## 로컬
 
 ```bash
 npm run sync-prompt
+npm run dev
 ```
 
-로컬 프롬프트 파일 위치와 Vercel 설정 방법을 안내합니다.
+## Vercel (사이트)
+
+`npm run sync-prompt` 실행 후 나오는 **Base64 한 줄**을 사용하는 것을 권장합니다.
+
+1. Vercel → Settings → Environment Variables
+2. Name: `SYSTEM_PROMPT_B64`
+3. Value: sync-prompt 출력의 Base64 한 줄
+4. Save → Redeploy
+
+또는 Name: `SYSTEM_PROMPT` 에 `system-prompt.txt` 전체 붙여넣기 (줄바꿈 깨질 수 있음)
+
+## 배포 확인
+
+Redeploy 후 브라우저에서:
+
+`https://www.yangportfo.com/api/prompt-status`
+
+- `promptSource`: `SYSTEM_PROMPT` 또는 `SYSTEM_PROMPT_B64` 여야 함
+- `promptLength`: 약 2400 이상
+- `default` 면 프롬프트 미적용 상태

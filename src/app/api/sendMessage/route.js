@@ -1,20 +1,29 @@
-// Next.js API Route: 최신 Gemini API 사용 (@google/genai)
-// 프롬프트를 파일에서 관리
-// MongoDB에 채팅 로그 저장
+// Next.js API Route: Gemini API + MongoDB 채팅 로그
 
 import { GoogleGenAI } from '@google/genai'
 import { MongoClient } from 'mongodb'
 import fs from 'fs'
 import path from 'path'
 
-// 환경변수에서 설정 가져오기
-const apiKey = process.env.GEMINI_API_KEY
-const mongoUri = process.env.MONGODB_URI
+export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
-// 시스템 프롬프트: Vercel/배포는 SYSTEM_PROMPT 환경변수, 로컬은 파일 또는 .env.local
+function readEnv(name) {
+  return process.env[name]?.trim() || ''
+}
+
 function loadSystemPrompt() {
-  if (process.env.SYSTEM_PROMPT?.trim()) {
-    return { prompt: process.env.SYSTEM_PROMPT, source: 'SYSTEM_PROMPT env' }
+  const envPrompt = readEnv('SYSTEM_PROMPT')
+  if (envPrompt) {
+    return { prompt: envPrompt, source: 'SYSTEM_PROMPT' }
+  }
+
+  const b64 = readEnv('SYSTEM_PROMPT_B64')
+  if (b64) {
+    return {
+      prompt: Buffer.from(b64, 'base64').toString('utf-8'),
+      source: 'SYSTEM_PROMPT_B64',
+    }
   }
 
   const promptPaths = [
@@ -26,19 +35,33 @@ function loadSystemPrompt() {
     if (fs.existsSync(promptPath)) {
       return {
         prompt: fs.readFileSync(promptPath, 'utf-8'),
-        source: promptPath,
+        source: path.basename(promptPath),
       }
     }
   }
 
   return {
     prompt: '당신은 친절한 AI 어시스턴트입니다.',
-    source: 'default fallback',
+    source: 'default',
   }
 }
 
-// Gemini 클라이언트 초기화 (최신 SDK)
-const ai = new GoogleGenAI({ apiKey })
+function buildGeminiContents(message, systemPrompt) {
+  return [
+    {
+      role: 'user',
+      parts: [{ text: `[시스템 지시]\n${systemPrompt}` }],
+    },
+    {
+      role: 'model',
+      parts: [{ text: '알겠습니다. 지시사항대로 양윤서로서 답변하겠습니다.' }],
+    },
+    {
+      role: 'user',
+      parts: [{ text: message }],
+    },
+  ]
+}
 
 function getUserFacingErrorMessage(err) {
   const message = err?.message || ''
@@ -51,31 +74,28 @@ function getUserFacingErrorMessage(err) {
   return '메시지 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
 }
 
-// MongoDB 클라이언트 (재사용을 위한 전역 변수)
 let mongoClient = null
 
-// MongoDB 연결 함수
 async function connectToMongoDB() {
   if (mongoClient) {
     return mongoClient
   }
-  
+
+  const mongoUri = readEnv('MONGODB_URI')
   if (!mongoUri) {
     throw new Error('MONGODB_URI 환경변수가 설정되지 않았습니다.')
   }
-  
+
   mongoClient = new MongoClient(mongoUri)
   await mongoClient.connect()
-  console.log('✅ MongoDB 연결 성공')
   return mongoClient
 }
 
-// Gemini API 호출 함수 (재시도 + Fallback 로직)
 async function callGeminiWithRetry(message, systemPrompt, maxRetries = 2) {
-  const models = [
-    'gemini-2.0-flash',
-    'gemini-1.5-flash',
-  ]
+  const apiKey = readEnv('GEMINI_API_KEY')
+  const ai = new GoogleGenAI({ apiKey })
+  const models = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash']
+  const contents = buildGeminiContents(message, systemPrompt)
 
   let lastError = null
 
@@ -85,11 +105,11 @@ async function callGeminiWithRetry(message, systemPrompt, maxRetries = 2) {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const response = await ai.models.generateContent({
-          model: model,
-          contents: message,
+          model,
+          contents,
           config: {
             systemInstruction: systemPrompt,
-            temperature: 1.0,
+            temperature: 0.8,
             maxOutputTokens: 2000,
             topP: 0.8,
             topK: 40,
@@ -98,16 +118,15 @@ async function callGeminiWithRetry(message, systemPrompt, maxRetries = 2) {
         })
 
         console.log(`✅ ${model} 성공!`)
-        return { text: response.text, model: model }
-
+        return { text: response.text, model }
       } catch (err) {
         lastError = err
         const is503 = err.status === 503 || err.message.includes('503') || err.message.includes('Service Unavailable')
 
         if (is503 && attempt < maxRetries) {
           const waitTime = 500 * attempt
-          console.log(`⚠️ ${model} 503 에러 (${attempt}/${maxRetries}), ${waitTime}ms 후 재시도...`)
-          await new Promise(resolve => setTimeout(resolve, waitTime))
+          console.log(`⚠️ ${model} 503 (${attempt}/${maxRetries}), ${waitTime}ms 후 재시도`)
+          await new Promise((resolve) => setTimeout(resolve, waitTime))
           continue
         }
 
@@ -117,47 +136,33 @@ async function callGeminiWithRetry(message, systemPrompt, maxRetries = 2) {
     }
   }
 
-  throw lastError || new Error('모든 Gemini 모델이 현재 사용 불가능합니다. 잠시 후 다시 시도해주세요.')
+  throw lastError || new Error('모든 Gemini 모델이 현재 사용 불가능합니다.')
 }
 
-// 채팅 로그 저장 함수
-async function saveChatLog(userMessage, aiResponse, success = true, error = null, modelUsed = null) {
-  console.log('🔵 saveChatLog 함수 시작')
-  console.log('🔵 MONGODB_URI 존재 여부:', !!process.env.MONGODB_URI)
-  
+async function saveChatLog(userMessage, aiResponse, success = true, error = null, modelUsed = null, promptSource = null) {
   try {
-    console.log('🔵 MongoDB 연결 시도...')
     const client = await connectToMongoDB()
-    console.log('🔵 MongoDB 연결 성공!')
-    
-    const db = client.db('chatbot') // 데이터베이스 이름
-    const collection = db.collection('chat_logs') // 컬렉션 이름
-    
-    const logEntry = {
-      timestamp: new Date(), // 현재 시간
-      userMessage: userMessage, // 사용자 메시지
-      aiResponse: aiResponse, // AI 응답
-      success: success, // 성공 여부
-      error: error, // 에러 메시지 (있다면)
-      modelUsed: modelUsed, // 사용된 모델
-    }
-    
-    console.log('🔵 문서 저장 시도...')
-    const result = await collection.insertOne(logEntry)
-    console.log('💾 채팅 로그 저장 완료! ID:', result.insertedId)
+    const db = client.db('chatbot')
+    const collection = db.collection('chat_logs')
+
+    await collection.insertOne({
+      timestamp: new Date(),
+      userMessage,
+      aiResponse,
+      success,
+      error,
+      modelUsed,
+      promptSource,
+    })
   } catch (err) {
     console.error('❌ MongoDB 저장 오류:', err.message)
-    console.error('❌ 전체 에러:', err)
-    // MongoDB 저장 실패해도 채팅은 계속 동작하도록 에러를 던지지 않음
   }
 }
 
 export async function GET(request) {
-  // 요청 URL에서 message 파라미터 추출
   const url = request.nextUrl ?? new URL(request.url || '', 'http://localhost')
   const message = url.searchParams.get('message') || ''
 
-  // 메시지가 비어있는지 확인
   if (!message.trim()) {
     return new Response(
       'message가 비어 있습니다. 예: /api/sendMessage?message=안녕하세요',
@@ -165,46 +170,33 @@ export async function GET(request) {
     )
   }
 
-  // 환경변수 검증
-  if (!apiKey) {
-    console.error('환경변수 누락: GEMINI_API_KEY')
+  if (!readEnv('GEMINI_API_KEY')) {
     return new Response(
       '서버 설정 오류: Gemini API 키가 설정되지 않았습니다.',
       { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
     )
   }
 
+  const { prompt: systemPrompt, source: promptSource } = loadSystemPrompt()
+
   try {
-    const { prompt: systemPrompt, source: promptSource } = loadSystemPrompt()
-
-    console.log('[Gemini API 요청] 메시지:', message.substring(0, 50) + '...')
-    console.log('[System Prompt] 출처:', promptSource)
-    console.log('[System Prompt] 길이:', systemPrompt.length, '글자')
-
-    if (promptSource === 'default fallback') {
-      console.warn('[System Prompt] 기본 프롬프트 사용 중 — SYSTEM_PROMPT 환경변수 또는 system-prompt.txt 필요')
-    }
+    console.log('[Gemini API 요청]', message.substring(0, 50))
+    console.log('[System Prompt] 출처:', promptSource, '/ 길이:', systemPrompt.length)
 
     const { text: responseText, model: modelUsed } = await callGeminiWithRetry(message, systemPrompt)
 
-    console.log('[Gemini API 응답] 성공:', responseText.substring(0, 50) + '...')
-
-    // MongoDB에 채팅 로그 저장 (성공)
-    await saveChatLog(message, responseText, true, null, modelUsed)
+    await saveChatLog(message, responseText, true, null, modelUsed, promptSource)
 
     return new Response(responseText, {
       headers: { 'Content-Type': 'text/plain; charset=utf-8' },
     })
   } catch (err) {
     console.error('Gemini API 오류:', err.message)
-    console.error('전체 에러:', err)
-    
-    // MongoDB에 채팅 로그 저장 (실패)
-    await saveChatLog(message, null, false, err.message, null)
-    
-    return new Response(
-      getUserFacingErrorMessage(err),
-      { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
-    )
+    await saveChatLog(message, null, false, err.message, null, promptSource)
+
+    return new Response(getUserFacingErrorMessage(err), {
+      status: 500,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
   }
 }
