@@ -23,7 +23,18 @@ if (!systemPrompt) {
 }
 
 // Gemini 클라이언트 초기화 (최신 SDK)
-const ai = new GoogleGenAI({})
+const ai = new GoogleGenAI({ apiKey })
+
+function getUserFacingErrorMessage(err) {
+  const message = err?.message || ''
+  if (message.includes('403') || message.includes('PERMISSION_DENIED') || message.includes('suspended')) {
+    return 'AI 서비스 설정에 문제가 있습니다. 잠시 후 다시 시도해주세요.'
+  }
+  if (message.includes('503') || message.includes('Service Unavailable')) {
+    return 'AI 서비스가 일시적으로 바쁩니다. 잠시 후 다시 시도해주세요.'
+  }
+  return '메시지 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+}
 
 // MongoDB 클라이언트 (재사용을 위한 전역 변수)
 let mongoClient = null
@@ -192,7 +203,7 @@ export async function GET(request) {
     await saveChatLog(message, null, false, err.message, null)
     
     return new Response(
-      `Gemini API 오류: ${err.message}`,
+      getUserFacingErrorMessage(err),
       { status: 500, headers: { 'Content-Type': 'text/plain; charset=utf-8' } }
     )
   }
