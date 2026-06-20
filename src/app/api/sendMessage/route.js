@@ -11,29 +11,31 @@ import path from 'path'
 const apiKey = process.env.GEMINI_API_KEY
 const mongoUri = process.env.MONGODB_URI
 
-// 시스템 프롬프트: Vercel은 SYSTEM_PROMPT 환경변수, 로컬은 gitignore된 파일
+// 시스템 프롬프트: Vercel/배포는 SYSTEM_PROMPT 환경변수, 로컬은 파일 또는 .env.local
 function loadSystemPrompt() {
   if (process.env.SYSTEM_PROMPT?.trim()) {
-    return process.env.SYSTEM_PROMPT
+    return { prompt: process.env.SYSTEM_PROMPT, source: 'SYSTEM_PROMPT env' }
   }
 
-  if (process.env.NODE_ENV !== 'production') {
-    const promptPaths = [
-      path.join(process.cwd(), 'system-prompt.txt'),
-      path.join(process.cwd(), 'prompts', 'system-prompt.txt'),
-    ]
+  const promptPaths = [
+    path.join(process.cwd(), 'system-prompt.txt'),
+    path.join(process.cwd(), 'prompts', 'system-prompt.txt'),
+  ]
 
-    for (const promptPath of promptPaths) {
-      if (fs.existsSync(promptPath)) {
-        return fs.readFileSync(promptPath, 'utf-8')
+  for (const promptPath of promptPaths) {
+    if (fs.existsSync(promptPath)) {
+      return {
+        prompt: fs.readFileSync(promptPath, 'utf-8'),
+        source: promptPath,
       }
     }
   }
 
-  return '당신은 친절한 AI 어시스턴트입니다.'
+  return {
+    prompt: '당신은 친절한 AI 어시스턴트입니다.',
+    source: 'default fallback',
+  }
 }
-
-const systemPrompt = loadSystemPrompt()
 
 // Gemini 클라이언트 초기화 (최신 SDK)
 const ai = new GoogleGenAI({ apiKey })
@@ -69,7 +71,7 @@ async function connectToMongoDB() {
 }
 
 // Gemini API 호출 함수 (재시도 + Fallback 로직)
-async function callGeminiWithRetry(message, maxRetries = 2) {
+async function callGeminiWithRetry(message, systemPrompt, maxRetries = 2) {
   const models = [
     'gemini-2.0-flash',
     'gemini-1.5-flash',
@@ -173,10 +175,17 @@ export async function GET(request) {
   }
 
   try {
+    const { prompt: systemPrompt, source: promptSource } = loadSystemPrompt()
+
     console.log('[Gemini API 요청] 메시지:', message.substring(0, 50) + '...')
+    console.log('[System Prompt] 출처:', promptSource)
     console.log('[System Prompt] 길이:', systemPrompt.length, '글자')
 
-    const { text: responseText, model: modelUsed } = await callGeminiWithRetry(message)
+    if (promptSource === 'default fallback') {
+      console.warn('[System Prompt] 기본 프롬프트 사용 중 — SYSTEM_PROMPT 환경변수 또는 system-prompt.txt 필요')
+    }
+
+    const { text: responseText, model: modelUsed } = await callGeminiWithRetry(message, systemPrompt)
 
     console.log('[Gemini API 응답] 성공:', responseText.substring(0, 50) + '...')
 
