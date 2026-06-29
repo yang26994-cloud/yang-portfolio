@@ -60,11 +60,6 @@ export default function Hero() {
       {/* 메인 콘텐츠 영역 */}
       <div className="relative z-10 text-center px-6 max-w-5xl mx-auto">
         {/* 상단 배지 - 페이드인 애니메이션 */}
-        <div className="mb-6 animate-fade-in">
-          <div className="inline-block px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/30 mb-8">
-            <span className="text-cyan-400 text-sm font-medium">🔒 Cybersecurity Professional</span>
-          </div>
-        </div>
 
         {/* 메인 타이틀 - 슬라이드업 애니메이션 */}
         <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight animate-slide-up">

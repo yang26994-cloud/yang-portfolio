@@ -48,7 +48,7 @@ export default function Timeline() {
           {/* 타이틀 아래 구분선 */}
           <div className="w-24 h-1 bg-gradient-to-r from-cyan-400 to-blue-500 mx-auto mb-4" />
           <p className="text-gray-400 max-w-2xl mx-auto">
-            꾸준한 학습으로 성장하는 개발자
+            꾸준한 학습으로 성장중
           </p>
         </div>
 

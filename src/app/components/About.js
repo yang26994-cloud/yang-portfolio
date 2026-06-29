@@ -7,7 +7,7 @@ export default function About() {
   const stats = [
     { label: '프로젝트', value: '준비중', color: 'from-cyan-400 to-blue-500' },
     { label: '블로그 포스트', value: '연재중', color: 'from-purple-400 to-pink-500' },
-    { label: '자격증', value: '4개 준비', color: 'from-green-400 to-emerald-500' },
+    { label: '자격증', value: '1개 취득', color: 'from-green-400 to-emerald-500' },
     { label: '목표', value: '보안전문가', color: 'from-orange-400 to-red-500' },
   ]
 
