@@ -35,18 +35,11 @@ export default function About() {
               <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-lg blur-xl opacity-20" />
               {/* 메인 카드 - 반투명 배경과 블러 효과 */}
               <div className="relative bg-gray-800/50 backdrop-blur-sm border border-cyan-500/30 rounded-lg p-8">
-                <h3 className="text-2xl font-semibold text-cyan-400 mb-4">보안 전문가를 꿈꾸는</h3>
                 <p className="text-gray-300 leading-relaxed mb-4">
-                  보안 분야 전문가가 되기 위해 <span className="text-cyan-400 font-semibold">꾸준히 학습하고 있습니다</span>. 
-                  네이버 블로그에 공부한 내용을 정리하며 지식을 쌓아가고 있습니다.
-                </p>
-                <p className="text-gray-300 leading-relaxed mb-4">
-                  웹 애플리케이션 보안, 네트워크 보안, 클라우드 보안 등 다양한 영역을 
-                  학습하며 실무 역량을 키우고 있습니다.
+                  서버, 네트워크, 웹 서비스 구조와 보안 기초를 공부하며 실습 내용을 기록하고 있습니다.
                 </p>
                 <p className="text-gray-300 leading-relaxed">
-                  AWS, Kubernetes 등의 자격증 취득을 준비하며 
-                  실전에서 활용할 수 있는 기술을 습득하고 있습니다.
+                  네이버 블로그에는 수업에서 배운 개념, 발표와 보고서 작성 과정, 프로젝트를 진행하며 겪은 오류와 해결 과정을 정리하고 있습니다.
                 </p>
               </div>
             </div>
